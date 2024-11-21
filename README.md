@@ -106,7 +106,7 @@ you can:
 * Get number of detected topics.
 * Get topics.
 * Get topic sizes. 
-* Get hierarchichal topics. 
+* Get hierarchical topics. 
 * Search topics by keywords.
 * Search documents by topic.
 * Search documents by keywords.
@@ -425,7 +425,7 @@ for doc, score, doc_id in zip(documents, document_scores, document_ids):
     
     Document: 9433, Score: 0.5997
     -----------
-    The same way that any theory is proven false.  You examine the predicitions
+    The same way that any theory is proven false.  You examine the predictions
     that the theory makes, and try to observe them.  If you don't, or if you
     observe things that the theory predicts wouldn't happen, then you have some 
     evidence against the theory.  If the theory can't be modified to 

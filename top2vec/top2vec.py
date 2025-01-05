@@ -772,15 +772,18 @@ class Top2Vec:
                                                             model_max_length=512,
                                                             embedding_model=model_name)
 
-            averaged_embeddings, chunk_tokens = sliding_window_average(document_token_embeddings,
-                                                                       document_tokens,
-                                                                       window_size=50,
-                                                                       stride=40)
+            (averaged_embeddings,
+             chunk_tokens,
+             multi_document_labels) = sliding_window_average(document_token_embeddings,
+                                                             document_tokens,
+                                                             window_size=50,
+                                                             stride=40)
 
             self.document_token_embeddings = document_token_embeddings
             self.document_vectors = averaged_embeddings
             self.document_tokens = document_tokens
             self.document_labels = document_labels
+            self.multi_document_labels = multi_document_labels
 
             if not umap_args:
                 umap_args = {
@@ -2882,7 +2885,6 @@ class Top2Vec:
         else:
             return doc_scores, doc_ids
 
-    @contextual_top2vec_req(False)
     def search_documents_by_keywords(self, keywords, num_docs, keywords_neg=None, return_documents=True,
                                      use_index=False, ef=None):
         """
@@ -2965,6 +2967,10 @@ class Top2Vec:
             combined_vector = self._get_combined_vec(word_vecs, neg_word_vecs)
             doc_indexes, doc_scores = self._search_vectors_by_vector(self.document_vectors,
                                                                      combined_vector, num_docs)
+            if self.contextual_top2vec:
+                multi_document_labels = np.array(self.multi_document_labels)
+                doc_indexes =  multi_document_labels[doc_indexes]
+
 
         doc_ids = self._get_document_ids(doc_indexes)
 

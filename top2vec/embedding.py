@@ -113,9 +113,11 @@ def sliding_window_average(document_token_embeddings, document_tokens, window_si
     # Store the averaged embeddings
     averaged_embeddings = []
     chunk_tokens = []
+    multi_document_labels = []
 
     # Iterate over each document
-    for doc, tokens in tqdm(zip(document_token_embeddings, document_tokens)):
+    for ind, (doc, tokens) in tqdm(enumerate(
+            zip(document_token_embeddings, document_tokens))):
         doc_averages = []
 
         # Slide the window over the document with the specified stride
@@ -137,11 +139,12 @@ def sliding_window_average(document_token_embeddings, document_tokens, window_si
             chunk_tokens.append(" ".join(tokens[start:end]))
 
         averaged_embeddings.append(doc_averages)
+        multi_document_labels.extend([ind] * len(doc_averages))
 
     averaged_embeddings = np.vstack(averaged_embeddings)
     averaged_embeddings = normalize(averaged_embeddings)
 
-    return averaged_embeddings, chunk_tokens
+    return averaged_embeddings, chunk_tokens, multi_document_labels
 
 
 def average_adjacent_tokens(token_embeddings, window_size):

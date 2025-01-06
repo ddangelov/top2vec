@@ -240,7 +240,7 @@ class Top2Vec:
         set to the topic_merge_delta.
 
     ngram_vocab: bool (Optional, default False)
-        Add phrases to topic descriptions.
+        Use phrases as topic descriptions.
 
         Uses gensim phrases to find common phrases in the corpus and adds them
         to the vocabulary.
@@ -253,6 +253,20 @@ class Top2Vec:
 
         For more information visit:
         https://radimrehurek.com/gensim/models/phrases.html
+
+    combine_ngram_vocab: bool (Optional, default False)
+        If set to True alongside ngram_vocab, then both common words and
+        common phrases will be added to the vocabulary from which topic labels
+        are considered.
+
+        If using top topic words, leave this disabled. If searching for
+        documents by individual terms, enable this.
+
+        This parameter is ignored when using doc2vec as embedding_model,
+        behaving as "True".
+
+        For more information visit:
+        https://github.com/ddangelov/Top2Vec/issues/364
 
     embedding_model: string or callable
         This will determine which model is used to generate the document and
@@ -455,6 +469,7 @@ class Top2Vec:
                  topic_merge_delta=0.1,
                  ngram_vocab=False,
                  ngram_vocab_args=None,
+                 combine_ngram_vocab=False,
                  embedding_model='all-MiniLM-L6-v2',
                  embedding_model_path=None,
                  embedding_batch_size=32,
@@ -663,7 +678,11 @@ class Top2Vec:
             # preprocess documents
             tokenized_corpus = [tokenizer(doc) for doc in documents]
 
-            self.vocab = self.get_label_vocabulary(tokenized_corpus, min_count, ngram_vocab, ngram_vocab_args)
+            self.vocab = self.get_label_vocabulary(tokenized_corpus,
+                                                   min_count,
+                                                   ngram_vocab,
+                                                   ngram_vocab_args,
+                                                   combine_ngram_vocab)
 
             self._check_model_status()
 
@@ -731,7 +750,11 @@ class Top2Vec:
             logger.info('Pre-processing documents for training')
             # create vocab
             tokenized_corpus = [tokenizer(doc) for doc in documents]
-            self.vocab = self.get_label_vocabulary(tokenized_corpus, min_count, ngram_vocab, ngram_vocab_args)
+            self.vocab = self.get_label_vocabulary(tokenized_corpus,
+                                                   min_count,
+                                                   ngram_vocab,
+                                                   ngram_vocab_args,
+                                                   combine_ngram_vocab)
 
             logger.info('Creating vocabulary embedding')
             self.word_indexes = dict(zip(self.vocab, range(len(self.vocab))))
@@ -749,15 +772,18 @@ class Top2Vec:
                                                             model_max_length=512,
                                                             embedding_model=model_name)
 
-            averaged_embeddings, chunk_tokens = sliding_window_average(document_token_embeddings,
-                                                                       document_tokens,
-                                                                       window_size=50,
-                                                                       stride=40)
+            (averaged_embeddings,
+             chunk_tokens,
+             multi_document_labels) = sliding_window_average(document_token_embeddings,
+                                                             document_tokens,
+                                                             window_size=50,
+                                                             stride=40)
 
             self.document_token_embeddings = document_token_embeddings
             self.document_vectors = averaged_embeddings
             self.document_tokens = document_tokens
             self.document_labels = document_labels
+            self.multi_document_labels = multi_document_labels
 
             if not umap_args:
                 umap_args = {
@@ -856,7 +882,11 @@ class Top2Vec:
         return doc_top_tokens, doc_topic_distribution, doc_topic_scores, doc_top_token_dists, topic_sizes
 
     @staticmethod
-    def get_label_vocabulary(tokenized_corpus, min_count, ngram_vocab, ngram_vocab_args):
+    def get_label_vocabulary(tokenized_corpus,
+                             min_count,
+                             ngram_vocab,
+                             ngram_vocab_args,
+                             combine_ngram_vocab):
 
         def return_doc(doc):
             return doc
@@ -887,7 +917,10 @@ class Top2Vec:
             phrase_results = phrase_model.find_phrases(tokenized_corpus)
             phrases = list(phrase_results.keys())
 
-            vocab = phrases
+            if combine_ngram_vocab:
+                vocab += phrases
+            else:
+                vocab = phrases
 
         return vocab
 
@@ -2852,7 +2885,6 @@ class Top2Vec:
         else:
             return doc_scores, doc_ids
 
-    @contextual_top2vec_req(False)
     def search_documents_by_keywords(self, keywords, num_docs, keywords_neg=None, return_documents=True,
                                      use_index=False, ef=None):
         """
@@ -2935,6 +2967,10 @@ class Top2Vec:
             combined_vector = self._get_combined_vec(word_vecs, neg_word_vecs)
             doc_indexes, doc_scores = self._search_vectors_by_vector(self.document_vectors,
                                                                      combined_vector, num_docs)
+            if self.contextual_top2vec:
+                multi_document_labels = np.array(self.multi_document_labels)
+                doc_indexes =  multi_document_labels[doc_indexes]
+
 
         doc_ids = self._get_document_ids(doc_indexes)
 
